@@ -26,11 +26,11 @@ source .venv/bin/activate
 
 # GitHub token
 if [[ -n $2 ]]; then
-	GIT_OAUTH_TOKEN=$2
-elif [[ -f ".githubtoken" ]]; then
-	GIT_OAUTH_TOKEN=$(<.githubtoken)
+	GITLAB_TOKEN=$2
+elif [[ -f ".gitlab_token" ]]; then
+	GITLAB_TOKEN=$(<.gitlab_token)
 else
-	echo "GitHub token not found. Dumping just locally..."
+	echo "Gitlab token not found. Dumping just locally..."
 fi
 
 # download or copy from local?
@@ -52,7 +52,9 @@ else
 	[[ -e "$URL" ]] || { echo "Invalid Input" && exit 1; }
 fi
 
-ORG=AndroidDumps #your GitHub org name
+GITLAB_INSTANCE="gitlab.com"
+GITLAB_HOST="https://${GITLAB_INSTANCE}"
+GITLAB_ORG=rmx3371-dumps #your Gitlab org name
 FILE=$(echo ${URL##*/} | inline-detox)
 EXTENSION=$(echo ${URL##*.} | inline-detox)
 UNZIP_DIR=${FILE/.$EXTENSION/}
@@ -337,8 +339,8 @@ description=$(grep -oP "(?<=^ro.build.description=).*" -hs {system,system/system
 is_ab=$(grep -oP "(?<=^ro.build.ab_update=).*" -hs {system,system/system,vendor}/build*.prop | head -1)
 [[ -z "${is_ab}" ]] && is_ab="false"
 branch=$(echo "$description" | tr ' ' '-')
-repo=$(echo "$brand"_"$codename"_dump | tr '[:upper:]' '[:lower:]')
 platform=$(echo "$platform" | tr '[:upper:]' '[:lower:]' | tr -dc '[:print:]' | tr '_' '-' | cut -c 1-35)
+repo=$(printf "${brand}" | tr '[:upper:]' '[:lower:]' && echo -e "/${codename}")
 top_codename=$(echo "$codename" | tr '[:upper:]' '[:lower:]' | tr -dc '[:print:]' | tr '_' '-' | cut -c 1-35)
 manufacturer=$(echo "$manufacturer" | tr '[:upper:]' '[:lower:]' | tr -dc '[:print:]' | tr '_' '-' | cut -c 1-35)
 printf "# %s\n- manufacturer: %s\n- platform: %s\n- codename: %s\n- flavor: %s\n- release: %s\n- id: %s\n- incremental: %s\n- tags: %s\n- fingerprint: %s\n- is_ab: %s\n- brand: %s\n- branch: %s\n- repo: %s\n" "$description" "$manufacturer" "$platform" "$codename" "$flavor" "$release" "$id" "$incremental" "$tags" "$fingerprint" "$is_ab" "$brand" "$branch" "$repo" >"$PROJECT_DIR"/working/"${UNZIP_DIR}"/README.md
@@ -360,41 +362,68 @@ chown "$(whoami)" ./* -R
 chmod -R u+rwX ./* #ensure final permissions
 find "$PROJECT_DIR"/working/"${UNZIP_DIR}" -type f -printf '%P\n' | sort | grep -v ".git/" >"$PROJECT_DIR"/working/"${UNZIP_DIR}"/all_files.txt
 
-if [[ -n $GIT_OAUTH_TOKEN ]]; then
-	GITPUSH=(git push https://"$GIT_OAUTH_TOKEN"@github.com/$ORG/"${repo,,}".git "$branch")
-	curl --silent --fail "https://raw.githubusercontent.com/$ORG/$repo/$branch/all_files.txt" 2>/dev/null && echo "Firmware already dumped!" && exit 1
-	git init
-	if [[ -z "$(git config --get user.email)" ]]; then
-		git config user.email AndroidDumps@github.com
+# Check if GITLAB_TOKEN is set
+if [[ -n $GITLAB_TOKEN ]]; then
+
+	# Check if firmware is already dumped
+	if curl -sL "${GITLAB_HOST}/${GITLAB_ORG}/${repo}/-/raw/${branch}/all_files.txt" | grep -q "all_files.txt"; then
+		echo -e "Firmware already dumped!\nGo to https://$GITLAB_INSTANCE/${GITLAB_ORG}/${repo}/-/tree/${branch}\n"
+		exit 1
 	fi
-	if [[ -z "$(git config --get user.name)" ]]; then
-		git config user.name AndroidDumps
-	fi
-	curl -s -X POST -H "Authorization: token ${GIT_OAUTH_TOKEN}" -d '{ "name": "'"$repo"'" }' "https://api.github.com/orgs/${ORG}/repos" #create new repo
-	curl -s -X PUT -H "Authorization: token ${GIT_OAUTH_TOKEN}" -H "Accept: application/vnd.github.mercy-preview+json" -d '{ "names": ["'"$manufacturer"'","'"$platform"'","'"$top_codename"'"]}' "https://api.github.com/repos/${ORG}/${repo}/topics"
-	git remote add origin https://github.com/$ORG/"${repo,,}".git
-	git checkout -b "$branch"
-	find . -size +97M -printf '%P\n' -o -name "*sensetime*" -printf '%P\n' -o -name "*.lic" -printf '%P\n' >|.gitignore
-	git add --all
-	git commit -asm "Add ${description}"
-	git update-ref -d HEAD
-	git reset system/ vendor/ product/
-	git checkout -b "$branch"
-	git commit -asm "Add extras for ${description}" && "${GITPUSH[@]}"
-	git add vendor/
-	git commit -asm "Add vendor for ${description}" && "${GITPUSH[@]}"
-	git add system/system/app/ || git add system/app/
-	git commit -asm "Add system app for ${description}" && "${GITPUSH[@]}"
-	git add system/system/priv-app/ || git add system/priv-app/
-	git commit -asm "Add system priv-app for ${description}" && "${GITPUSH[@]}"
-	git add system/
-	git commit -asm "Add system for ${description}" && "${GITPUSH[@]}"
-	git add product/app/
-	git commit -asm "Add product app for ${description}" && "${GITPUSH[@]}"
-	git add product/priv-app/
-	git commit -asm "Add product priv-app for ${description}" && "${GITPUSH[@]}"
-	git add product/
-	git commit -asm "Add product for ${description}" && "${GITPUSH[@]}"
+
+	# Get Group ID
+	GRP_ID=$(curl -s --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "${GITLAB_HOST}/api/v4/groups/${GITLAB_ORG}" | jq -r '.id')
+
+	# Create Subgroup
+	curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+		--header "Content-Type: application/json" \
+		--data "{\"name\": \"${brand}\", \"path\": \"$(echo ${brand} | tr '[:upper:]' '[:lower:]')\", \"visibility\": \"public\", \"parent_id\": \"${GRP_ID}\"}" \
+		"${GITLAB_HOST}/api/v4/groups/"
+
+	# Get Subgroup ID
+	SUBGRP_ID=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+		"${GITLAB_HOST}/api/v4/groups/${GITLAB_ORG}/subgroups" | jq -r ".[] | select(.path==\"$(echo ${brand} | tr '[:upper:]' '[:lower:]')\") | .id")
+
+	# Create Repository
+	curl -s --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+		-X POST \
+		"${GITLAB_HOST}/api/v4/projects?name=${codename}&namespace_id=${SUBGRP_ID}&visibility=public"
+
+	# Get Project ID
+	PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+		"${GITLAB_HOST}/api/v4/groups/${SUBGRP_ID}/projects" | jq -r ".[] | select(.path==\"${codename}\") | .id")
+
+	# Make project public
+	curl -s --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+		--request PUT \
+		--url "${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}" \
+		--data "visibility=public"
+
+	# Git setup
+	git init --initial-branch "$branch"
+	git config user.email "${GIT_EMAIL:-AndroidDumps@github.com}"
+	git config user.name "${GIT_NAME:-AndroidDumps}"
+
+	# Git push function
+	git_push() {
+		git commit -asm "$1"
+		git push "git@$GITLAB_INSTANCE:$GITLAB_ORG/$repo.git" HEAD:refs/heads/"$branch"
+	}
+
+	# Add and push files
+	git add vendor/ && git_push "Add vendor for ${description}"
+	git add system/{system/app,app}/ && git_push "Add system app for ${description}"
+	git add system/{system/priv-app,priv-app}/ && git_push "Add system priv-app for ${description}"
+	git add system/ && git_push "Add system for ${description}"
+	git add product/{app,priv-app}/ && git_push "Add product app for ${description}"
+	git add product/ && git_push "Add product for ${description}"
+
+	# Set default branch
+	curl -s --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+		--request PUT \
+		--url "${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}" \
+		--data "default_branch=${branch}"
+
 else
 	echo "Dump done locally."
 	exit 1
@@ -402,21 +431,13 @@ fi
 
 # Telegram channel
 TG_TOKEN=$(<"$PROJECT_DIR"/.tgtoken)
-if [[ -n "$TG_TOKEN" ]]; then
-	CHAT_ID="@android_dumps"
-	commit_head=$(git log --format=format:%H | head -n 1)
-	commit_link="https://github.com/$ORG/$repo/commit/$commit_head"
-	echo -e "Sending telegram notification"
-	printf "<b>Brand: %s</b>" "$brand" >|"$PROJECT_DIR"/working/tg.html
-	{
-		printf "\n<b>Device: %s</b>" "$codename"
-		printf "\n<b>Version:</b> %s" "$release"
-		printf "\n<b>Fingerprint:</b> %s" "$fingerprint"
-		printf "\n<b>GitHub:</b>"
-		printf "\n<a href=\"%s\">Commit</a>" "$commit_link"
-		printf "\n<a href=\"https://github.com/%s/%s/tree/%s/\">%s</a>" "$ORG" "$repo" "$branch" "$codename"
-	} >>"$PROJECT_DIR"/working/tg.html
-	TEXT=$(<"$PROJECT_DIR"/working/tg.html)
-	curl -s "https://api.telegram.org/bot${TG_TOKEN}/sendmessage" --data "text=${TEXT}&chat_id=${CHAT_ID}&parse_mode=HTML&disable_web_page_preview=True" >/dev/null
-	rm -rf "$PROJECT_DIR"/working/tg.html
-fi
+CHAT_ID="@hopireika_dump"
+tg_html_text="<b>Brand</b>: <code>$brand</code>
+<b>Device</b>: <code>$codename</code>
+<b>Version</b>: <code>$release</code>
+<b>Fingerprint</b>: <code>$fingerprint</code>
+<b>Platform</b>: <code>$platform</code>
+[<a href=\"https://$GITLAB_INSTANCE/$GITLAB_ORG/$repo/tree/$branch/\">repo</a>] $link"
+
+# Send message to Telegram channel
+curl --compressed -s "https://api.telegram.org/bot${TG_TOKEN}/sendmessage" --data "text=${tg_html_text}&chat_id=$CHAT_ID&parse_mode=HTML&disable_web_page_preview=True" >/dev/null
