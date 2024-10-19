@@ -2,23 +2,23 @@
 
 [[ $# = 0 ]] && echo "No Input" && exit 1
 
-OS=`uname`
+OS=$(uname)
 if [ "$OS" = 'Darwin' ]; then
-    export LC_CTYPE=C
+	export LC_CTYPE=C
 fi
 
-PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
 # Create input & working directory if it does not exist
 mkdir -p "$PROJECT_DIR"/input "$PROJECT_DIR"/working
 
 # Determine which command to use for privilege escalation
-if command -v sudo > /dev/null 2>&1; then
-    sudo_cmd="sudo"
-elif command -v doas > /dev/null 2>&1; then
-    sudo_cmd="doas"
+if command -v sudo >/dev/null 2>&1; then
+	sudo_cmd="sudo"
+elif command -v doas >/dev/null 2>&1; then
+	sudo_cmd="doas"
 else
-    echo "Neither sudo nor doas found. Please install one of them."
-    exit 1
+	echo "Neither sudo nor doas found. Please install one of them."
+	exit 1
 fi
 
 # Activate virtual environment
@@ -26,30 +26,30 @@ source .venv/bin/activate
 
 # GitHub token
 if [[ -n $2 ]]; then
-    GIT_OAUTH_TOKEN=$2
+	GIT_OAUTH_TOKEN=$2
 elif [[ -f ".githubtoken" ]]; then
-    GIT_OAUTH_TOKEN=$(< .githubtoken)
+	GIT_OAUTH_TOKEN=$(<.githubtoken)
 else
-    echo "GitHub token not found. Dumping just locally..."
+	echo "GitHub token not found. Dumping just locally..."
 fi
 
 # download or copy from local?
-if echo "$1" | grep -e '^\(https\?\|ftp\)://.*$' > /dev/null; then
-    # 1DRV URL DIRECT LINK IMPLEMENTATION
-    if echo "$1" | grep -e '1drv.ms' > /dev/null; then
-        URL=`curl -I "$1" -s | grep location | sed -e "s/redir/download/g" | sed -e "s/location: //g"`
-    else
-        URL=$1
-    fi
-    cd "$PROJECT_DIR"/input || exit
-    { type -p aria2c > /dev/null 2>&1 && printf "Downloading File...\n" && aria2c -x16 -j"$(nproc)" "${URL}"; } || { printf "Downloading File...\n" && wget -q --content-disposition --show-progress --progress=bar:force "${URL}" || exit 1; }
-    if [[ ! -f "$(echo ${URL##*/} | inline-detox)" ]]; then
-        URL=$(wget --server-response --spider "${URL}" 2>&1 | awk -F"filename=" '{print $2}')
-    fi
-    detox "${URL##*/}"
+if echo "$1" | grep -e '^\(https\?\|ftp\)://.*$' >/dev/null; then
+	# 1DRV URL DIRECT LINK IMPLEMENTATION
+	if echo "$1" | grep -e '1drv.ms' >/dev/null; then
+		URL=$(curl -I "$1" -s | grep location | sed -e "s/redir/download/g" | sed -e "s/location: //g")
+	else
+		URL=$1
+	fi
+	cd "$PROJECT_DIR"/input || exit
+	{ type -p aria2c >/dev/null 2>&1 && printf "Downloading File...\n" && aria2c -x16 -j"$(nproc)" "${URL}"; } || { printf "Downloading File...\n" && wget -q --content-disposition --show-progress --progress=bar:force "${URL}" || exit 1; }
+	if [[ ! -f "$(echo ${URL##*/} | inline-detox)" ]]; then
+		URL=$(wget --server-response --spider "${URL}" 2>&1 | awk -F"filename=" '{print $2}')
+	fi
+	detox "${URL##*/}"
 else
-    URL=$(printf "%s\n" "$1")
-    [[ -e "$URL" ]] || { echo "Invalid Input" && exit 1; }
+	URL=$(printf "%s\n" "$1")
+	[[ -e "$URL" ]] || { echo "Invalid Input" && exit 1; }
 fi
 
 ORG=AndroidDumps #your GitHub org name
@@ -59,23 +59,23 @@ UNZIP_DIR=${FILE/.$EXTENSION/}
 PARTITIONS="system systemex system_ext system_other vendor cust odm odm_ext oem factory product modem xrom oppo_product opproduct reserve india my_preload my_odm my_stock my_operator my_country my_product my_company my_engineering my_heytap my_custom my_manifest my_carrier my_region my_bigball my_version special_preload vendor_dlkm odm_dlkm system_dlkm mi_ext"
 
 if [[ -d "$1" ]]; then
-    echo 'Directory detected. Copying...'
-    cp -a "$1" "$PROJECT_DIR"/working/"${UNZIP_DIR}"
+	echo 'Directory detected. Copying...'
+	cp -a "$1" "$PROJECT_DIR"/working/"${UNZIP_DIR}"
 elif [[ -f "$1" ]]; then
-    echo 'File detected. Copying...'
-    cp -a "$1" "$PROJECT_DIR"/input/"${FILE}" > /dev/null 2>&1
+	echo 'File detected. Copying...'
+	cp -a "$1" "$PROJECT_DIR"/input/"${FILE}" >/dev/null 2>&1
 fi
 
 # clone other repo's
 if [[ -d "$PROJECT_DIR/Firmware_extractor" ]]; then
-    git -C "$PROJECT_DIR"/Firmware_extractor pull --recurse-submodules
+	git -C "$PROJECT_DIR"/Firmware_extractor pull --recurse-submodules
 else
-    git clone -q --recurse-submodules https://github.com/AndroidDumps/Firmware_extractor "$PROJECT_DIR"/Firmware_extractor
+	git clone -q --recurse-submodules https://github.com/AndroidDumps/Firmware_extractor "$PROJECT_DIR"/Firmware_extractor
 fi
 if [[ -d "$PROJECT_DIR/vmlinux-to-elf" ]]; then
-    git -C "$PROJECT_DIR"/vmlinux-to-elf pull --recurse-submodules
+	git -C "$PROJECT_DIR"/vmlinux-to-elf pull --recurse-submodules
 else
-    git clone -q https://github.com/marin-m/vmlinux-to-elf "$PROJECT_DIR/vmlinux-to-elf"
+	git clone -q https://github.com/marin-m/vmlinux-to-elf "$PROJECT_DIR/vmlinux-to-elf"
 fi
 
 # extract rom via Firmware_extractor
@@ -88,187 +88,187 @@ VMLINUX_TO_ELF="${PROJECT_DIR}"/vmlinux-to-elf/vmlinux_to_elf/main.py
 
 # Extract 'boot.img'
 if [[ -f "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot.img ]]; then
-    # Set a variable for each path
-    ## Image
-    IMAGE=${PROJECT_DIR}/working/${UNZIP_DIR}/boot.img
+	# Set a variable for each path
+	## Image
+	IMAGE=${PROJECT_DIR}/working/${UNZIP_DIR}/boot.img
 
-    ## Output(s)
-    OUTPUT=${PROJECT_DIR}/working/${UNZIP_DIR}/boot
+	## Output(s)
+	OUTPUT=${PROJECT_DIR}/working/${UNZIP_DIR}/boot
 
-    # Create necessary directories
-    mkdir -p "${OUTPUT}/dtb"
-    mkdir -p "${OUTPUT}/dts"
+	# Create necessary directories
+	mkdir -p "${OUTPUT}/dtb"
+	mkdir -p "${OUTPUT}/dts"
 
-    # Extract 'boot.img' content(s)
-    "${UNPACKBOOTIMG}" -i "${IMAGE}" -o "${OUTPUT}" > /dev/null 2>&1
-    echo 'boot extracted'
+	# Extract 'boot.img' content(s)
+	"${UNPACKBOOTIMG}" -i "${IMAGE}" -o "${OUTPUT}" >/dev/null 2>&1
+	echo 'boot extracted'
 
-    # Extract 'dtb' and decompile then
-    extract-dtb "${IMAGE}" -o "${OUTPUT}/dtb" > /dev/null
-    rm -rf "${OUTPUT}/dtb/00_kernel"
+	# Extract 'dtb' and decompile then
+	extract-dtb "${IMAGE}" -o "${OUTPUT}/dtb" >/dev/null
+	rm -rf "${OUTPUT}/dtb/00_kernel"
 
-    ## Check whether device-tree blobs were extracted or not
-    if [ "$(find ${OUTPUT_DTB} -name "*.dtb")" ]; then
-        for dtb in $(find "${OUTPUT_DTB}" -type f); do
-            dtc -q -I dtb -O dts "${dtb}" >> "${OUTPUT}/dts/$(basename "${dtb}" | sed 's/\.dtb/.dts/')"
-        done
-        echo 'boot (dtb, dts) extracted'
-    else
-        ## Extraction failed, device-tree resources are probably somewhere else.
-        rm -rf "${OUTPUT}/dtb" \
-               "${OUTPUT}/dts"
-    fi
+	## Check whether device-tree blobs were extracted or not
+	if [ "$(find ${OUTPUT_DTB} -name "*.dtb")" ]; then
+		for dtb in $(find "${OUTPUT_DTB}" -type f); do
+			dtc -q -I dtb -O dts "${dtb}" >>"${OUTPUT}/dts/$(basename "${dtb}" | sed 's/\.dtb/.dts/')"
+		done
+		echo 'boot (dtb, dts) extracted'
+	else
+		## Extraction failed, device-tree resources are probably somewhere else.
+		rm -rf "${OUTPUT}/dtb" \
+			"${OUTPUT}/dts"
+	fi
 
-    # Run 'extract-ikconfig'
-    [[ ! -e "${PROJECT_DIR}"/extract-ikconfig ]] && curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/extract-ikconfig > "${PROJECT_DIR}"/extract-ikconfig
-    bash "${PROJECT_DIR}"/extract-ikconfig "${IMAGE}" > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/ikconfig
+	# Run 'extract-ikconfig'
+	[[ ! -e "${PROJECT_DIR}"/extract-ikconfig ]] && curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/extract-ikconfig >"${PROJECT_DIR}"/extract-ikconfig
+	bash "${PROJECT_DIR}"/extract-ikconfig "${IMAGE}" >"$PROJECT_DIR"/working/"${UNZIP_DIR}"/ikconfig
 
-    # Run 'vmlinux-to-elf'
-    mkdir -p "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootRE
-    python3 "${KALLSYMS_FINDER}" "${IMAGE}" > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootRE/boot_kallsyms.txt 2>&1
-    echo 'boot_kallsyms.txt generated'
-    python3 "${VMLINUX_TO_ELF}" "${IMAGE}" "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootRE/boot.elf > /dev/null 2>&1
-    echo 'boot.elf generated'
+	# Run 'vmlinux-to-elf'
+	mkdir -p "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootRE
+	python3 "${KALLSYMS_FINDER}" "${IMAGE}" >"$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootRE/boot_kallsyms.txt 2>&1
+	echo 'boot_kallsyms.txt generated'
+	python3 "${VMLINUX_TO_ELF}" "${IMAGE}" "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootRE/boot.elf >/dev/null 2>&1
+	echo 'boot.elf generated'
 fi
 
 # Extract 'vendor_boot'
 if [[ -f "$PROJECT_DIR"/working/"${UNZIP_DIR}"/vendor_boot.img ]]; then
-    # Set a variable for each path
-    ## Image
-    IMAGE=${PROJECT_DIR}/working/${UNZIP_DIR}/vendor_boot.img
+	# Set a variable for each path
+	## Image
+	IMAGE=${PROJECT_DIR}/working/${UNZIP_DIR}/vendor_boot.img
 
-    ## Output(s)
-    OUTPUT=${PROJECT_DIR}/working/${UNZIP_DIR}/boot
+	## Output(s)
+	OUTPUT=${PROJECT_DIR}/working/${UNZIP_DIR}/boot
 
-    # Create necessary directories
-    mkdir -p "${OUTPUT}/dtb"
-    mkdir -p "${OUTPUT}/dts"
+	# Create necessary directories
+	mkdir -p "${OUTPUT}/dtb"
+	mkdir -p "${OUTPUT}/dts"
 
-    # Extract 'vendor_boot.img' content(s)
-    "${UNPACKBOOTIMG}" -i "${IMAGE}" -o "${OUTPUT}" > /dev/null 2>&1
-    echo 'vendor_boot extracted'
+	# Extract 'vendor_boot.img' content(s)
+	"${UNPACKBOOTIMG}" -i "${IMAGE}" -o "${OUTPUT}" >/dev/null 2>&1
+	echo 'vendor_boot extracted'
 
-    # Extract 'dtb' and decompile then
-    extract-dtb "${IMAGE}" -o "${OUTPUT}/dtb" > /dev/null
+	# Extract 'dtb' and decompile then
+	extract-dtb "${IMAGE}" -o "${OUTPUT}/dtb" >/dev/null
 
-    ## Check whether device-tree blobs were extracted or not
-    if [ "$(find "${OUTPUT}/dtb" -name "*.dtb")" ]; then
-        for dtb in $(find "${OUTPUT}/dtb" -type f); do
-            dtc -q -I dtb -O dts "${dtb}" >> "${OUTPUT}/dts/$(basename "${dtb}" | sed 's/\.dtb/.dts/')"
-        done
-        echo 'vendor_boot (dtb, dts) extracted'
-    else
-        ## Extraction failed, device-tree resources are probably somewhere else.
-        rm -rf "${OUTPUT}/dtb" \
-               "${OUTPUT}/dts"
-    fi
+	## Check whether device-tree blobs were extracted or not
+	if [ "$(find "${OUTPUT}/dtb" -name "*.dtb")" ]; then
+		for dtb in $(find "${OUTPUT}/dtb" -type f); do
+			dtc -q -I dtb -O dts "${dtb}" >>"${OUTPUT}/dts/$(basename "${dtb}" | sed 's/\.dtb/.dts/')"
+		done
+		echo 'vendor_boot (dtb, dts) extracted'
+	else
+		## Extraction failed, device-tree resources are probably somewhere else.
+		rm -rf "${OUTPUT}/dtb" \
+			"${OUTPUT}/dts"
+	fi
 fi
 
 # Extract 'vendor_kernel_boot'
 if [[ -f "$PROJECT_DIR"/working/"${UNZIP_DIR}"/vendor_kernel_boot.img ]]; then
-    # Set a variable for each path
-    ## Image
-    IMAGE=${PROJECT_DIR}/working/${UNZIP_DIR}/vendor_kernel_boot.img
+	# Set a variable for each path
+	## Image
+	IMAGE=${PROJECT_DIR}/working/${UNZIP_DIR}/vendor_kernel_boot.img
 
-    ## Output(s)
-    OUTPUT=${PROJECT_DIR}/working/${UNZIP_DIR}/vendor_kernel_boot
+	## Output(s)
+	OUTPUT=${PROJECT_DIR}/working/${UNZIP_DIR}/vendor_kernel_boot
 
-    # Create necessary directories
-    mkdir -p "${OUTPUT}/dtb"
-    mkdir -p "${OUTPUT}/dts"
+	# Create necessary directories
+	mkdir -p "${OUTPUT}/dtb"
+	mkdir -p "${OUTPUT}/dts"
 
-    # Extract 'vendor_boot.img' content(s)
-    "${UNPACKBOOTIMG}" -i "${IMAGE}" -o "${OUTPUT}" > /dev/null 2>&1
-    echo 'vendor_kernel_boot extracted'
+	# Extract 'vendor_boot.img' content(s)
+	"${UNPACKBOOTIMG}" -i "${IMAGE}" -o "${OUTPUT}" >/dev/null 2>&1
+	echo 'vendor_kernel_boot extracted'
 
-    # Extract 'dtb' and decompile then
-    extract-dtb "${IMAGE}" -o "${OUTPUT}/dtb" > /dev/null
-    rm -rf "${OUTPUT}/dtb/00_kernel"
+	# Extract 'dtb' and decompile then
+	extract-dtb "${IMAGE}" -o "${OUTPUT}/dtb" >/dev/null
+	rm -rf "${OUTPUT}/dtb/00_kernel"
 
-    ## Check whether device-tree blobs were extracted or not
-    if [ "$(find "${OUTPUT}/dtb" -name "*.dtb")" ]; then
-        for dtb in $(find "${OUTPUT}/dtb" -type f); do
-            dtc -q -I dtb -O dts "${dtb}" >> "${OUTPUT}/dts/$(basename "${dtb}" | sed 's/\.dtb/.dts/')"
-        done
-        echo 'vendor_kernel_boot (dtb, dts) extracted'
-    else
-        # Extraction failed, device-tree resources are probably somewhere else.
-        rm -rf "${OUTPUT}/dtb" \
-               "${OUTPUT}/dts"
-    fi
+	## Check whether device-tree blobs were extracted or not
+	if [ "$(find "${OUTPUT}/dtb" -name "*.dtb")" ]; then
+		for dtb in $(find "${OUTPUT}/dtb" -type f); do
+			dtc -q -I dtb -O dts "${dtb}" >>"${OUTPUT}/dts/$(basename "${dtb}" | sed 's/\.dtb/.dts/')"
+		done
+		echo 'vendor_kernel_boot (dtb, dts) extracted'
+	else
+		# Extraction failed, device-tree resources are probably somewhere else.
+		rm -rf "${OUTPUT}/dtb" \
+			"${OUTPUT}/dts"
+	fi
 fi
 
 # Extract 'init_boot'
 if [[ -f "$PROJECT_DIR"/working/"${UNZIP_DIR}"/init_boot.img ]]; then
-    # Set a variable for each path
-    ## Image
-    IMAGE=${PROJECT_DIR}/working/${UNZIP_DIR}/init_boot.img
+	# Set a variable for each path
+	## Image
+	IMAGE=${PROJECT_DIR}/working/${UNZIP_DIR}/init_boot.img
 
-    ## Output(s)
-    OUTPUT=${PROJECT_DIR}/working/${UNZIP_DIR}/init_boot
+	## Output(s)
+	OUTPUT=${PROJECT_DIR}/working/${UNZIP_DIR}/init_boot
 
-    # Extract 'init_boot.img' content(s)
-    "${UNPACKBOOTIMG}" -i "${IMAGE}" -o "${OUTPUT}" > /dev/null 2>&1
-    echo 'init_boot extracted'
+	# Extract 'init_boot.img' content(s)
+	"${UNPACKBOOTIMG}" -i "${IMAGE}" -o "${OUTPUT}" >/dev/null 2>&1
+	echo 'init_boot extracted'
 fi
 
 if [[ -f "$PROJECT_DIR"/working/"${UNZIP_DIR}"/dtbo.img ]]; then
-    # Set a variable for each path
-    ## Image
-    IMAGE=${PROJECT_DIR}/working/${UNZIP_DIR}/dtbo.img
+	# Set a variable for each path
+	## Image
+	IMAGE=${PROJECT_DIR}/working/${UNZIP_DIR}/dtbo.img
 
-    ## Output(s)
-    OUTPUT=${PROJECT_DIR}/working/${UNZIP_DIR}/dtbo
+	## Output(s)
+	OUTPUT=${PROJECT_DIR}/working/${UNZIP_DIR}/dtbo
 
-    # Create necessary directories
-    mkdir -p "${OUTPUT}/dts"
+	# Create necessary directories
+	mkdir -p "${OUTPUT}/dts"
 
-    # Extract 'dtb' and decompile them
-    extract-dtb "${IMAGE}" -o "${OUTPUT}" > /dev/null
-    rm -rf "${OUTPUT}/00_kernel"
-    for dtb in $(find "${PROJECT_DIR}/working/${UNZIP_DIR}/dtbo" -type f -name "*.dtb"); do
-        dtc -q -I dtb -O dts "${dtb}" >> "${OUTPUT}/dts/$(basename "${dtb}" | sed 's/\.dtb/.dts/')"
-    done
-    echo 'dtbo extracted'
+	# Extract 'dtb' and decompile them
+	extract-dtb "${IMAGE}" -o "${OUTPUT}" >/dev/null
+	rm -rf "${OUTPUT}/00_kernel"
+	for dtb in $(find "${PROJECT_DIR}/working/${UNZIP_DIR}/dtbo" -type f -name "*.dtb"); do
+		dtc -q -I dtb -O dts "${dtb}" >>"${OUTPUT}/dts/$(basename "${dtb}" | sed 's/\.dtb/.dts/')"
+	done
+	echo 'dtbo extracted'
 fi
 
 # extract PARTITIONS
 cd "$PROJECT_DIR"/working/"${UNZIP_DIR}" || exit
 for p in $PARTITIONS; do
-    # Try to extract images via fsck.erofs
-    if [ -f $p.img ] && [ $p != "modem" ]; then
-        echo "Trying to extract $p partition via fsck.erofs."
-        "$PROJECT_DIR"/Firmware_extractor/tools/fsck.erofs --extract="$p" "$p".img
-        # Deletes images if they were correctly extracted via fsck.erofs
-        if [ -d "$p" ]; then
-            rm "$p".img > /dev/null 2>&1
-        else
-        # Uses 7z if images could not be extracted via fsck.erofs
-            if [[ -e "$p.img" ]]; then
-                mkdir "$p" 2> /dev/null || rm -rf "${p:?}"/*
-                echo "Extraction via fsck.erofs failed, extracting $p partition via 7z"
-                7z x "$p".img -y -o"$p"/ > /dev/null 2>&1
-                if [ $? -eq 0 ]; then
-                    rm "$p".img > /dev/null 2>&1
-                else
-                    echo "Couldn't extract $p partition via 7z. Using mount loop"
-                    $sudo_cmd mount -o loop -t auto "$p".img "$p"
-                    mkdir "${p}_"
-                    $sudo_cmd cp -rf "${p}/"* "${p}_"
-                    $sudo_cmd umount "${p}"
-                    $sudo_cmd cp -rf "${p}_/"* "${p}"
-                    $sudo_cmd rm -rf "${p}_"
-                    if [ $? -eq 0 ]; then
-                        rm -fv "$p".img > /dev/null 2>&1
-                    else
-                        echo "Couldn't extract $p partition. It might use an unsupported filesystem."
-                        echo "For EROFS: make sure you're using Linux 5.4+ kernel."
-                        echo "For F2FS: make sure you're using Linux 5.15+ kernel."
-                    fi
-                fi
-            fi
-        fi
-    fi
+	# Try to extract images via fsck.erofs
+	if [ -f $p.img ] && [ $p != "modem" ]; then
+		echo "Trying to extract $p partition via fsck.erofs."
+		"$PROJECT_DIR"/Firmware_extractor/tools/fsck.erofs --extract="$p" "$p".img
+		# Deletes images if they were correctly extracted via fsck.erofs
+		if [ -d "$p" ]; then
+			rm "$p".img >/dev/null 2>&1
+		else
+			# Uses 7z if images could not be extracted via fsck.erofs
+			if [[ -e "$p.img" ]]; then
+				mkdir "$p" 2>/dev/null || rm -rf "${p:?}"/*
+				echo "Extraction via fsck.erofs failed, extracting $p partition via 7z"
+				7z x "$p".img -y -o"$p"/ >/dev/null 2>&1
+				if [ $? -eq 0 ]; then
+					rm "$p".img >/dev/null 2>&1
+				else
+					echo "Couldn't extract $p partition via 7z. Using mount loop"
+					$sudo_cmd mount -o loop -t auto "$p".img "$p"
+					mkdir "${p}_"
+					$sudo_cmd cp -rf "${p}/"* "${p}_"
+					$sudo_cmd umount "${p}"
+					$sudo_cmd cp -rf "${p}_/"* "${p}"
+					$sudo_cmd rm -rf "${p}_"
+					if [ $? -eq 0 ]; then
+						rm -fv "$p".img >/dev/null 2>&1
+					else
+						echo "Couldn't extract $p partition. It might use an unsupported filesystem."
+						echo "For EROFS: make sure you're using Linux 5.4+ kernel."
+						echo "For F2FS: make sure you're using Linux 5.15+ kernel."
+					fi
+				fi
+			fi
+		fi
+	fi
 done
 
 # Fix permissions
@@ -276,15 +276,15 @@ $sudo_cmd chown "$(whoami)" "$PROJECT_DIR"/working/"${UNZIP_DIR}"/./* -fR
 $sudo_cmd chmod -fR u+rwX "$PROJECT_DIR"/working/"${UNZIP_DIR}"/./*
 
 # board-info.txt
-find "$PROJECT_DIR"/working/"${UNZIP_DIR}"/modem -type f -exec strings {} \; | grep "QC_IMAGE_VERSION_STRING=MPSS." | sed "s|QC_IMAGE_VERSION_STRING=MPSS.||g" | cut -c 4- | sed -e 's/^/require version-baseband=/' >> "$PROJECT_DIR"/working/"${UNZIP_DIR}"/board-info.txt
-find "$PROJECT_DIR"/working/"${UNZIP_DIR}"/tz* -type f -exec strings {} \; | grep "QC_IMAGE_VERSION_STRING" | sed "s|QC_IMAGE_VERSION_STRING|require version-trustzone|g" >> "$PROJECT_DIR"/working/"${UNZIP_DIR}"/board-info.txt
+find "$PROJECT_DIR"/working/"${UNZIP_DIR}"/modem -type f -exec strings {} \; | grep "QC_IMAGE_VERSION_STRING=MPSS." | sed "s|QC_IMAGE_VERSION_STRING=MPSS.||g" | cut -c 4- | sed -e 's/^/require version-baseband=/' >>"$PROJECT_DIR"/working/"${UNZIP_DIR}"/board-info.txt
+find "$PROJECT_DIR"/working/"${UNZIP_DIR}"/tz* -type f -exec strings {} \; | grep "QC_IMAGE_VERSION_STRING" | sed "s|QC_IMAGE_VERSION_STRING|require version-trustzone|g" >>"$PROJECT_DIR"/working/"${UNZIP_DIR}"/board-info.txt
 if [ -e "$PROJECT_DIR"/working/"${UNZIP_DIR}"/vendor/build.prop ]; then
-    strings "$PROJECT_DIR"/working/"${UNZIP_DIR}"/vendor/build.prop | grep "ro.vendor.build.date.utc" | sed "s|ro.vendor.build.date.utc|require version-vendor|g" >> "$PROJECT_DIR"/working/"${UNZIP_DIR}"/board-info.txt
+	strings "$PROJECT_DIR"/working/"${UNZIP_DIR}"/vendor/build.prop | grep "ro.vendor.build.date.utc" | sed "s|ro.vendor.build.date.utc|require version-vendor|g" >>"$PROJECT_DIR"/working/"${UNZIP_DIR}"/board-info.txt
 fi
 sort -u -o "$PROJECT_DIR"/working/"${UNZIP_DIR}"/board-info.txt "$PROJECT_DIR"/working/"${UNZIP_DIR}"/board-info.txt
 
 # set variables
-ls system/build*.prop 2> /dev/null || ls system/system/build*.prop 2> /dev/null || { echo "No system build*.prop found, pushing cancelled!" && exit; }
+ls system/build*.prop 2>/dev/null || ls system/system/build*.prop 2>/dev/null || { echo "No system build*.prop found, pushing cancelled!" && exit; }
 flavor=$(grep -oP "(?<=^ro.build.flavor=).*" -hs {system,system/system,vendor}/build*.prop)
 [[ -z "${flavor}" ]] && flavor=$(grep -oP "(?<=^ro.vendor.build.flavor=).*" -hs vendor/build*.prop)
 [[ -z "${flavor}" ]] && flavor=$(grep -oP "(?<=^ro.system.build.flavor=).*" -hs {system,system/system}/build*.prop)
@@ -292,7 +292,7 @@ flavor=$(grep -oP "(?<=^ro.build.flavor=).*" -hs {system,system/system,vendor}/b
 release=$(grep -oP "(?<=^ro.build.version.release=).*" -hs {system,system/system,vendor}/build*.prop)
 [[ -z "${release}" ]] && release=$(grep -oP "(?<=^ro.vendor.build.version.release=).*" -hs vendor/build*.prop)
 [[ -z "${release}" ]] && release=$(grep -oP "(?<=^ro.system.build.version.release=).*" -hs {system,system/system}/build*.prop)
-release=`echo "$release" | head -1`
+release=$(echo "$release" | head -1)
 id=$(grep -oP "(?<=^ro.build.id=).*" -hs {system,system/system,vendor}/build*.prop)
 [[ -z "${id}" ]] && id=$(grep -oP "(?<=^ro.vendor.build.id=).*" -hs vendor/build*.prop)
 [[ -z "${id}" ]] && id=$(grep -oP "(?<=^ro.system.build.id=).*" -hs {system,system/system}/build*.prop)
@@ -341,82 +341,82 @@ repo=$(echo "$brand"_"$codename"_dump | tr '[:upper:]' '[:lower:]')
 platform=$(echo "$platform" | tr '[:upper:]' '[:lower:]' | tr -dc '[:print:]' | tr '_' '-' | cut -c 1-35)
 top_codename=$(echo "$codename" | tr '[:upper:]' '[:lower:]' | tr -dc '[:print:]' | tr '_' '-' | cut -c 1-35)
 manufacturer=$(echo "$manufacturer" | tr '[:upper:]' '[:lower:]' | tr -dc '[:print:]' | tr '_' '-' | cut -c 1-35)
-printf "# %s\n- manufacturer: %s\n- platform: %s\n- codename: %s\n- flavor: %s\n- release: %s\n- id: %s\n- incremental: %s\n- tags: %s\n- fingerprint: %s\n- is_ab: %s\n- brand: %s\n- branch: %s\n- repo: %s\n" "$description" "$manufacturer" "$platform" "$codename" "$flavor" "$release" "$id" "$incremental" "$tags" "$fingerprint" "$is_ab" "$brand" "$branch" "$repo" > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/README.md
+printf "# %s\n- manufacturer: %s\n- platform: %s\n- codename: %s\n- flavor: %s\n- release: %s\n- id: %s\n- incremental: %s\n- tags: %s\n- fingerprint: %s\n- is_ab: %s\n- brand: %s\n- branch: %s\n- repo: %s\n" "$description" "$manufacturer" "$platform" "$codename" "$flavor" "$release" "$id" "$incremental" "$tags" "$fingerprint" "$is_ab" "$brand" "$branch" "$repo" >"$PROJECT_DIR"/working/"${UNZIP_DIR}"/README.md
 cat "$PROJECT_DIR"/working/"${UNZIP_DIR}"/README.md
 
 # Generate AOSP device tree
 if python3 -c "import aospdtgen"; then
-    echo "aospdtgen installed, generating device tree"
-    mkdir -p "${PROJECT_DIR}/working/${UNZIP_DIR}/aosp-device-tree"
-    if python3 -m aospdtgen . --output "${PROJECT_DIR}/working/${UNZIP_DIR}/aosp-device-tree"; then
-        echo "AOSP device tree successfully generated"
-    else
-        echo "Failed to generate AOSP device tree"
-    fi
+	echo "aospdtgen installed, generating device tree"
+	mkdir -p "${PROJECT_DIR}/working/${UNZIP_DIR}/aosp-device-tree"
+	if python3 -m aospdtgen . --output "${PROJECT_DIR}/working/${UNZIP_DIR}/aosp-device-tree"; then
+		echo "AOSP device tree successfully generated"
+	else
+		echo "Failed to generate AOSP device tree"
+	fi
 fi
 
 # copy file names
 chown "$(whoami)" ./* -R
 chmod -R u+rwX ./* #ensure final permissions
-find "$PROJECT_DIR"/working/"${UNZIP_DIR}" -type f -printf '%P\n' | sort | grep -v ".git/" > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/all_files.txt
+find "$PROJECT_DIR"/working/"${UNZIP_DIR}" -type f -printf '%P\n' | sort | grep -v ".git/" >"$PROJECT_DIR"/working/"${UNZIP_DIR}"/all_files.txt
 
 if [[ -n $GIT_OAUTH_TOKEN ]]; then
-    GITPUSH=(git push https://"$GIT_OAUTH_TOKEN"@github.com/$ORG/"${repo,,}".git "$branch")
-    curl --silent --fail "https://raw.githubusercontent.com/$ORG/$repo/$branch/all_files.txt" 2> /dev/null && echo "Firmware already dumped!" && exit 1
-    git init
-    if [[ -z "$(git config --get user.email)" ]]; then
-        git config user.email AndroidDumps@github.com
-    fi
-    if [[ -z "$(git config --get user.name)" ]]; then
-        git config user.name AndroidDumps
-    fi
-    curl -s -X POST -H "Authorization: token ${GIT_OAUTH_TOKEN}" -d '{ "name": "'"$repo"'" }' "https://api.github.com/orgs/${ORG}/repos" #create new repo
-    curl -s -X PUT -H "Authorization: token ${GIT_OAUTH_TOKEN}" -H "Accept: application/vnd.github.mercy-preview+json" -d '{ "names": ["'"$manufacturer"'","'"$platform"'","'"$top_codename"'"]}' "https://api.github.com/repos/${ORG}/${repo}/topics"
-    git remote add origin https://github.com/$ORG/"${repo,,}".git
-    git checkout -b "$branch"
-    find . -size +97M -printf '%P\n' -o -name "*sensetime*" -printf '%P\n' -o -name "*.lic" -printf '%P\n' >| .gitignore
-    git add --all
-    git commit -asm "Add ${description}"
-    git update-ref -d HEAD
-    git reset system/ vendor/ product/
-    git checkout -b "$branch"
-    git commit -asm "Add extras for ${description}" && "${GITPUSH[@]}"
-    git add vendor/
-    git commit -asm "Add vendor for ${description}" && "${GITPUSH[@]}"
-    git add system/system/app/ || git add system/app/
-    git commit -asm "Add system app for ${description}" && "${GITPUSH[@]}"
-    git add system/system/priv-app/ || git add system/priv-app/
-    git commit -asm "Add system priv-app for ${description}" && "${GITPUSH[@]}"
-    git add system/
-    git commit -asm "Add system for ${description}" && "${GITPUSH[@]}"
-    git add product/app/
-    git commit -asm "Add product app for ${description}" && "${GITPUSH[@]}"
-    git add product/priv-app/
-    git commit -asm "Add product priv-app for ${description}" && "${GITPUSH[@]}"
-    git add product/
-    git commit -asm "Add product for ${description}" && "${GITPUSH[@]}"
+	GITPUSH=(git push https://"$GIT_OAUTH_TOKEN"@github.com/$ORG/"${repo,,}".git "$branch")
+	curl --silent --fail "https://raw.githubusercontent.com/$ORG/$repo/$branch/all_files.txt" 2>/dev/null && echo "Firmware already dumped!" && exit 1
+	git init
+	if [[ -z "$(git config --get user.email)" ]]; then
+		git config user.email AndroidDumps@github.com
+	fi
+	if [[ -z "$(git config --get user.name)" ]]; then
+		git config user.name AndroidDumps
+	fi
+	curl -s -X POST -H "Authorization: token ${GIT_OAUTH_TOKEN}" -d '{ "name": "'"$repo"'" }' "https://api.github.com/orgs/${ORG}/repos" #create new repo
+	curl -s -X PUT -H "Authorization: token ${GIT_OAUTH_TOKEN}" -H "Accept: application/vnd.github.mercy-preview+json" -d '{ "names": ["'"$manufacturer"'","'"$platform"'","'"$top_codename"'"]}' "https://api.github.com/repos/${ORG}/${repo}/topics"
+	git remote add origin https://github.com/$ORG/"${repo,,}".git
+	git checkout -b "$branch"
+	find . -size +97M -printf '%P\n' -o -name "*sensetime*" -printf '%P\n' -o -name "*.lic" -printf '%P\n' >|.gitignore
+	git add --all
+	git commit -asm "Add ${description}"
+	git update-ref -d HEAD
+	git reset system/ vendor/ product/
+	git checkout -b "$branch"
+	git commit -asm "Add extras for ${description}" && "${GITPUSH[@]}"
+	git add vendor/
+	git commit -asm "Add vendor for ${description}" && "${GITPUSH[@]}"
+	git add system/system/app/ || git add system/app/
+	git commit -asm "Add system app for ${description}" && "${GITPUSH[@]}"
+	git add system/system/priv-app/ || git add system/priv-app/
+	git commit -asm "Add system priv-app for ${description}" && "${GITPUSH[@]}"
+	git add system/
+	git commit -asm "Add system for ${description}" && "${GITPUSH[@]}"
+	git add product/app/
+	git commit -asm "Add product app for ${description}" && "${GITPUSH[@]}"
+	git add product/priv-app/
+	git commit -asm "Add product priv-app for ${description}" && "${GITPUSH[@]}"
+	git add product/
+	git commit -asm "Add product for ${description}" && "${GITPUSH[@]}"
 else
-    echo "Dump done locally."
-    exit 1
+	echo "Dump done locally."
+	exit 1
 fi
 
 # Telegram channel
-TG_TOKEN=$(< "$PROJECT_DIR"/.tgtoken)
+TG_TOKEN=$(<"$PROJECT_DIR"/.tgtoken)
 if [[ -n "$TG_TOKEN" ]]; then
-    CHAT_ID="@android_dumps"
-    commit_head=$(git log --format=format:%H | head -n 1)
-    commit_link="https://github.com/$ORG/$repo/commit/$commit_head"
-    echo -e "Sending telegram notification"
-    printf "<b>Brand: %s</b>" "$brand" >| "$PROJECT_DIR"/working/tg.html
-    {
-        printf "\n<b>Device: %s</b>" "$codename"
-        printf "\n<b>Version:</b> %s" "$release"
-        printf "\n<b>Fingerprint:</b> %s" "$fingerprint"
-        printf "\n<b>GitHub:</b>"
-        printf "\n<a href=\"%s\">Commit</a>" "$commit_link"
-        printf "\n<a href=\"https://github.com/%s/%s/tree/%s/\">%s</a>" "$ORG" "$repo" "$branch" "$codename"
-    } >> "$PROJECT_DIR"/working/tg.html
-    TEXT=$(< "$PROJECT_DIR"/working/tg.html)
-    curl -s "https://api.telegram.org/bot${TG_TOKEN}/sendmessage" --data "text=${TEXT}&chat_id=${CHAT_ID}&parse_mode=HTML&disable_web_page_preview=True" > /dev/null
-    rm -rf "$PROJECT_DIR"/working/tg.html
+	CHAT_ID="@android_dumps"
+	commit_head=$(git log --format=format:%H | head -n 1)
+	commit_link="https://github.com/$ORG/$repo/commit/$commit_head"
+	echo -e "Sending telegram notification"
+	printf "<b>Brand: %s</b>" "$brand" >|"$PROJECT_DIR"/working/tg.html
+	{
+		printf "\n<b>Device: %s</b>" "$codename"
+		printf "\n<b>Version:</b> %s" "$release"
+		printf "\n<b>Fingerprint:</b> %s" "$fingerprint"
+		printf "\n<b>GitHub:</b>"
+		printf "\n<a href=\"%s\">Commit</a>" "$commit_link"
+		printf "\n<a href=\"https://github.com/%s/%s/tree/%s/\">%s</a>" "$ORG" "$repo" "$branch" "$codename"
+	} >>"$PROJECT_DIR"/working/tg.html
+	TEXT=$(<"$PROJECT_DIR"/working/tg.html)
+	curl -s "https://api.telegram.org/bot${TG_TOKEN}/sendmessage" --data "text=${TEXT}&chat_id=${CHAT_ID}&parse_mode=HTML&disable_web_page_preview=True" >/dev/null
+	rm -rf "$PROJECT_DIR"/working/tg.html
 fi
